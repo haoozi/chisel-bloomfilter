@@ -6,11 +6,11 @@ Bloom filter in chisel
 ```sbt test```
 
 ## Status
-### Working
-Clear memory
+### Completed
+Test clear memory
+Test insert data and readback
 
 ### TBD
-Test insert data and readback
 Test pipelined lookup/insert
 Implement more hash functions
 Test Chisel implementation against Scala model

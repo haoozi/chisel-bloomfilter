@@ -71,23 +71,23 @@ class BloomFilter(hash_funcs: Seq[HashFunc], data_width: Int, array_size: Int) e
     val mem_clear_counter = new Counter(array_size)
     val (mem_clear_counter_value, mem_clear_counter_wrap) = Counter(s1_cmd === s2_clear, array_size)
 
-    val hash_result = Reg(Vec(n_hash_funcs, UInt(hash_funcs.head.get_hash_width().W)))
-    
-    val mem_read_en = RegInit(Bool(), false.B)
-    val mem_read_result = Reg(Vec(n_hash_funcs, Bool()))
+    val hash_result = Wire(Vec(n_hash_funcs, UInt(hash_funcs.head.get_hash_width().W)))
+    val mem_read_result = Wire(Vec(n_hash_funcs, Bool()))
 
     (0 until n_hash_funcs).foreach {
         i => { hash_result(i) := hash_funcs(i).hash_chisel(io.in.bits.data) }
     }
 
+    val mem_read_en = io.in.fire && io.in.bits.cmd.lookup
+
     (0 until n_hash_funcs).foreach {
         i => { mem_read_result(i) := mem.read(hash_result(i), mem_read_en) }
     }
 
-
     io.in.ready := (s1_cmd =/= s2_clear)
     io.out.valid := false.B
     io.out.bits.exists := false.B
+
 
     // pipeline stage 1
     // Accept req and calculate hash, then send out mem read/write request (n port)
@@ -95,17 +95,21 @@ class BloomFilter(hash_funcs: Seq[HashFunc], data_width: Int, array_size: Int) e
     when (io.in.fire) {
         when (io.in.bits.cmd.lookup) {
             // lookup
-            mem_read_en := true.B
             s1_cmd := s2_lookup
 
         } .elsewhen (io.in.bits.cmd.insert) {
             // insert
             s1_cmd := s2_insert
+            (0 until n_hash_funcs).foreach {
+                i => { mem.write(hash_result(i), true.B) }
+            }
         } .elsewhen (io.in.bits.cmd.clear) {
             // clear
             mem.write(mem_clear_counter_value, false.B)
             // clearing := true.B
             s1_cmd := s2_clear
+        } .otherwise {
+            s1_cmd := s2_idle
         }
     } .otherwise {
         when (s1_cmd === s2_clear) {
@@ -115,6 +119,8 @@ class BloomFilter(hash_funcs: Seq[HashFunc], data_width: Int, array_size: Int) e
                 // Not done yet
                 mem.write(mem_clear_counter_value, false.B)
             }
+        } .otherwise {
+            s1_cmd := s2_idle
         }
     }
 
