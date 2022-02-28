@@ -8,7 +8,7 @@ import javax.sql.rowset.spi.SyncResolver
 
 abstract class HashFunc(input_width: Int, hash_width: Int) {
     def get_hash_width() = hash_width
-    
+
     def hash_scala(input: BigInt): BigInt
     def hash_chisel(input: UInt): UInt
 }
@@ -66,20 +66,22 @@ class BloomFilter(hash_funcs: Seq[HashFunc], data_width: Int, array_size: Int) e
     
     val mem = SyncReadMem(array_size, Bool())
 
-
     val s1_cmd = RegInit(UInt(), s2_idle)
 
     val mem_clear_counter = new Counter(array_size)
-
     val (mem_clear_counter_value, mem_clear_counter_wrap) = Counter(s1_cmd === s2_clear, array_size)
 
     val hash_result = Reg(Vec(n_hash_funcs, UInt(hash_funcs.head.get_hash_width().W)))
+    
     val mem_read_en = RegInit(Bool(), false.B)
     val mem_read_result = Reg(Vec(n_hash_funcs, Bool()))
+
     (0 until n_hash_funcs).foreach {
-        i => {
-            mem_read_result(i) := mem.read(hash_result(i), mem_read_en)
-        }
+        i => { hash_result(i) := hash_funcs(i).hash_chisel(io.in.bits.data) }
+    }
+
+    (0 until n_hash_funcs).foreach {
+        i => { mem_read_result(i) := mem.read(hash_result(i), mem_read_en) }
     }
 
 
@@ -93,26 +95,14 @@ class BloomFilter(hash_funcs: Seq[HashFunc], data_width: Int, array_size: Int) e
     when (io.in.fire) {
         when (io.in.bits.cmd.lookup) {
             // lookup
-            (0 until n_hash_funcs).foreach {
-                i => {
-                    hash_result(i) := hash_funcs(i).hash_chisel(io.in.bits.data)
-                }
-            }
             mem_read_en := true.B
             s1_cmd := s2_lookup
 
         } .elsewhen (io.in.bits.cmd.insert) {
-            //
-            (0 until n_hash_funcs).foreach {
-                i => {
-                    hash_result(i) := hash_funcs(i).hash_chisel(io.in.bits.data)
-                    mem.write(hash_result(i), true.B)
-                }
-            }
-            
+            // insert
             s1_cmd := s2_insert
         } .elsewhen (io.in.bits.cmd.clear) {
-            //
+            // clear
             mem.write(mem_clear_counter_value, false.B)
             // clearing := true.B
             s1_cmd := s2_clear
