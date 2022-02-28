@@ -8,6 +8,7 @@ Bloom filter in chisel
 ## Status
 ### Completed
 Test clear memory
+
 Test insert data and readback
 
 ### TBD
