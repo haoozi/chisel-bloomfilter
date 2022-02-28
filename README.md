@@ -11,9 +11,9 @@ Test clear memory
 
 Test insert data and readback
 
-### TBD
-
 Test pipelined lookup/insert
+
+### TBD
 
 Implement more hash functions
 

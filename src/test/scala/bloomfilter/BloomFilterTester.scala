@@ -69,6 +69,52 @@ class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
         dut.io.out.valid.expect(true.B)
         dut.io.out.bits.exists.expect(exists.B)
     }
+
+    object BFAction extends Enumeration {
+        type BFAction = Value
+        val Lookup, Insert = Value
+    }
+    import BFAction._
+
+
+
+    case class BloomFilterTestAction(act: BFAction, data: Int, exists: Boolean)
+
+    def bf_pipeline(dut: BloomFilter, actions: Seq[BloomFilterTestAction]) = {
+        
+        (0 to actions.length).foreach {
+            cycle => {
+                if (cycle < actions.length) {
+                    // push command
+                    val action = actions(cycle)
+
+                    dut.io.in.ready.expect(true.B)
+                    dut.io.in.valid.poke(true.B)
+                    dut.io.in.bits.cmd.lookup.poke((action.act == Lookup).B)
+                    dut.io.in.bits.cmd.insert.poke((action.act == Insert).B)
+                    dut.io.in.bits.cmd.clear.poke(false.B)
+                    dut.io.in.bits.data.poke(action.data.U)
+                } else {
+                    dut.io.in.valid.poke(false.B)
+                }
+
+                if (cycle > 0) {
+                    // check result
+                    val action = actions(cycle - 1)
+
+                    dut.io.out.valid.expect(true.B)
+                    // don't care action.exists if it's an insertion
+                    if (action.act == Lookup) {
+                        dut.io.out.bits.exists.expect(action.exists.B)
+                    }
+                } else {
+                    dut.io.out.valid.expect(false.B)
+                }
+
+                dut.clock.step()
+            }
+        }
+    }
     
     behavior of "BloomFilter"
     it should "correctly clear internal mem" in {
@@ -89,6 +135,24 @@ class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
             bf_lookup(dut, 123, true)
             // check for non-existing data (should return false)
             bf_lookup(dut, 321, false)
+        }
+    }
+
+
+    it should "correctly complete pipelined requests" in {
+        val requests = Seq(
+            BloomFilterTestAction(Insert, 111, false),
+            BloomFilterTestAction(Insert, 222, false),
+            BloomFilterTestAction(Lookup, 222, true),
+            BloomFilterTestAction(Lookup, 333, false),
+            BloomFilterTestAction(Insert, 333, false),
+            BloomFilterTestAction(Lookup, 333, true),
+        )
+        val hash_funcs = Seq(new HashFunc_Modulo(32, 4), new HashFunc_Modulo2(32, 4))
+        test(new BloomFilter(hash_funcs, 32, 16)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
+            bf_clear(dut, 16)
+            // insert into bloom filter
+            bf_pipeline(dut, requests)
         }
     }
 
