@@ -5,6 +5,7 @@ package bloomfilter
 import chisel3._
 import chiseltest._
 import org.scalatest.flatspec.AnyFlatSpec
+import scala.util.Random
 
 
 class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
@@ -121,7 +122,7 @@ class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
         val hash_funcs = Seq(new HashFunc_Modulo(32, 4), new HashFunc_Modulo2(32, 4))
         val param = new BloomFilterParams(hash_funcs, 32, 16)
         test(new BloomFilter(param)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
-            bf_clear(dut, 16)
+            bf_clear(dut, param.array_size)
         }
     }
 
@@ -129,7 +130,7 @@ class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
         val hash_funcs = Seq(new HashFunc_Modulo(32, 4), new HashFunc_Modulo2(32, 4))
         val param = new BloomFilterParams(hash_funcs, 32, 16)
         test(new BloomFilter(param)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
-            bf_clear(dut, 16)
+            bf_clear(dut, param.array_size)
             // insert into bloom filter
             bf_insert(dut, 123)
             dut.clock.step()
@@ -137,6 +138,32 @@ class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
             bf_lookup(dut, 123, true)
             // check for non-existing data (should return false)
             bf_lookup(dut, 321, false)
+        }
+    }
+
+    it should "has same behavior as scala model" in {
+        val hash_funcs = Seq(new HashFunc_Modulo(32, 4), new HashFunc_Modulo2(32, 4))
+        val param = new BloomFilterParams(hash_funcs, 32, 16)
+        val scalaModel = new BloomFilterModel(param)
+
+        test(new BloomFilter(param)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
+            bf_clear(dut, param.array_size)
+            scalaModel.clear()
+            // insert into bloom filter
+
+
+            (0 until 8).foreach { i => {
+                val data = Random.nextInt(500)
+                val isInsert = Random.nextInt(100) < 50
+
+                if (isInsert) {
+                    bf_insert(dut, data)
+                    scalaModel.insert(data)
+                }
+
+                bf_lookup(dut, data, scalaModel.lookup(data)) 
+            }}
+
         }
     }
 
@@ -153,7 +180,7 @@ class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
         val hash_funcs = Seq(new HashFunc_Modulo(32, 4), new HashFunc_Modulo2(32, 4))
         val param = new BloomFilterParams(hash_funcs, 32, 16)
         test(new BloomFilter(param)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
-            bf_clear(dut, 16)
+            bf_clear(dut, param.array_size)
             // insert into bloom filter
             bf_pipeline(dut, requests)
         }

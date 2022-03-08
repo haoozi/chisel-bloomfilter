@@ -50,8 +50,8 @@ case class BloomFilterParams(val hash_funcs: Seq[HashFunc], val data_width: Int,
 
     require(data_width % 32 == 0)
     require(array_size > 0)
-    require(hash_funcs.length > 0)
-    require(array_size > hash_funcs.length)
+    require(n_hash_funcs > 0)
+    require(array_size > n_hash_funcs)
 }
 
 
@@ -71,15 +71,14 @@ class BloomFilter(p: BloomFilterParams) extends Module {
     })
 
 
-    val s2_idle :: s2_lookup :: s2_insert :: s2_clear :: Nil = Enum(4)
-    
     val mem = SyncReadMem(p.array_size, Bool())
 
+
+    val s2_idle :: s2_lookup :: s2_insert :: s2_clear :: Nil = Enum(4)
     val s1_cmd = RegInit(UInt(), s2_idle)
 
     val mem_clear_counter = new Counter(p.array_size)
     val (mem_clear_counter_value, mem_clear_counter_wrap) = Counter(s1_cmd === s2_clear, p.array_size)
-
 
     val mem_read_en = io.in.fire && io.in.bits.cmd.lookup
 
