@@ -6,8 +6,7 @@ import chisel3.util._
 import scala.math.BigInt
 import javax.sql.rowset.spi.SyncResolver
 
-abstract class HashFunc(input_width: Int, hash_width: Int) {
-    def get_hash_width() = hash_width
+abstract class HashFunc(val input_width: Int, val hash_width: Int) {
 
     def hash_scala(input: BigInt): BigInt
     def hash_chisel(input: UInt): UInt
@@ -41,18 +40,28 @@ class BloomFilterCmds extends Bundle {
 }
 
 
-class BloomFilter(hash_funcs: Seq[HashFunc], data_width: Int, array_size: Int) extends Module {
+case class BloomFilterParams(val hash_funcs: Seq[HashFunc], val data_width: Int, val array_size: Int) {
+    val n_hash_funcs = hash_funcs.length
+
+    val hash_width = hash_funcs.head.hash_width
+    val hash_input_width = hash_funcs.head.input_width
+
+    require(hash_input_width == data_width)
 
     require(data_width % 32 == 0)
     require(array_size > 0)
     require(hash_funcs.length > 0)
     require(array_size > hash_funcs.length)
+}
 
-    val n_hash_funcs = hash_funcs.length
+
+class BloomFilter(p: BloomFilterParams) extends Module {
+
+
 
     val io = IO(new Bundle {
         val in = Flipped(Decoupled(new Bundle {
-            val data = UInt(data_width.W)
+            val data = UInt(p.data_width.W)
             val cmd = Input(new BloomFilterCmds())
         }))
 
@@ -64,25 +73,23 @@ class BloomFilter(hash_funcs: Seq[HashFunc], data_width: Int, array_size: Int) e
 
     val s2_idle :: s2_lookup :: s2_insert :: s2_clear :: Nil = Enum(4)
     
-    val mem = SyncReadMem(array_size, Bool())
+    val mem = SyncReadMem(p.array_size, Bool())
 
     val s1_cmd = RegInit(UInt(), s2_idle)
 
-    val mem_clear_counter = new Counter(array_size)
-    val (mem_clear_counter_value, mem_clear_counter_wrap) = Counter(s1_cmd === s2_clear, array_size)
+    val mem_clear_counter = new Counter(p.array_size)
+    val (mem_clear_counter_value, mem_clear_counter_wrap) = Counter(s1_cmd === s2_clear, p.array_size)
 
-    val hash_result = Wire(Vec(n_hash_funcs, UInt(hash_funcs.head.get_hash_width().W)))
-    val mem_read_result = Wire(Vec(n_hash_funcs, Bool()))
-
-    (0 until n_hash_funcs).foreach {
-        i => { hash_result(i) := hash_funcs(i).hash_chisel(io.in.bits.data) }
-    }
 
     val mem_read_en = io.in.fire && io.in.bits.cmd.lookup
 
-    (0 until n_hash_funcs).foreach {
-        i => { mem_read_result(i) := mem.read(hash_result(i), mem_read_en) }
-    }
+    val hash_result = Wire(Vec(p.n_hash_funcs, UInt(p.hash_width.W)))
+    val mem_read_result = Wire(Vec(p.n_hash_funcs, Bool()))
+
+    (0 until p.n_hash_funcs).foreach { i => { 
+        hash_result(i) := p.hash_funcs(i).hash_chisel(io.in.bits.data) 
+        mem_read_result(i) := mem.read(hash_result(i), mem_read_en)
+    }}
 
     io.in.ready := (s1_cmd =/= s2_clear)
     io.out.valid := false.B
@@ -100,7 +107,7 @@ class BloomFilter(hash_funcs: Seq[HashFunc], data_width: Int, array_size: Int) e
         } .elsewhen (io.in.bits.cmd.insert) {
             // insert
             s1_cmd := s2_insert
-            (0 until n_hash_funcs).foreach {
+            (0 until p.n_hash_funcs).foreach {
                 i => { mem.write(hash_result(i), true.B) }
             }
         } .elsewhen (io.in.bits.cmd.clear) {

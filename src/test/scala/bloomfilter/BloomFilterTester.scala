@@ -119,14 +119,16 @@ class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
     behavior of "BloomFilter"
     it should "correctly clear internal mem" in {
         val hash_funcs = Seq(new HashFunc_Modulo(32, 4), new HashFunc_Modulo2(32, 4))
-        test(new BloomFilter(hash_funcs, 32, 16)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
+        val param = new BloomFilterParams(hash_funcs, 32, 16)
+        test(new BloomFilter(param)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
             bf_clear(dut, 16)
         }
     }
 
     it should "correctly insert a new value and be able to read back" in {
         val hash_funcs = Seq(new HashFunc_Modulo(32, 4), new HashFunc_Modulo2(32, 4))
-        test(new BloomFilter(hash_funcs, 32, 16)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
+        val param = new BloomFilterParams(hash_funcs, 32, 16)
+        test(new BloomFilter(param)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
             bf_clear(dut, 16)
             // insert into bloom filter
             bf_insert(dut, 123)
@@ -149,7 +151,8 @@ class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
             BloomFilterTestAction(Lookup, 333, true),
         )
         val hash_funcs = Seq(new HashFunc_Modulo(32, 4), new HashFunc_Modulo2(32, 4))
-        test(new BloomFilter(hash_funcs, 32, 16)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
+        val param = new BloomFilterParams(hash_funcs, 32, 16)
+        test(new BloomFilter(param)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
             bf_clear(dut, 16)
             // insert into bloom filter
             bf_pipeline(dut, requests)
