@@ -9,12 +9,6 @@ class BloomFilterModel(p: BloomFilterParams) {
     require(p.hash_width < 32)
     val mem = ArrayBuffer.fill(p.array_size)(false)
 
-    def get_hash(data: BigInt) = {
-        p.hash_funcs.map { func => {
-            func.hash_scala(data)
-        }}
-    }
-
     def lookup(data: BigInt) = {
         p.hash_funcs.map({ func => mem(func.hash_scala(data).toInt) }) reduce (_ && _)
     }
