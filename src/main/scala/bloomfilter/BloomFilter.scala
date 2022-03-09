@@ -231,13 +231,14 @@ class BloomFilterCmds extends Bundle {
 
 case class BloomFilterParams(val hash_funcs: Seq[HashFunc], val data_width: Int, val array_size: Int) {
     val n_hash_funcs = hash_funcs.length
+    require(n_hash_funcs > 0)
+    
     val hash_width = hash_funcs.head.hash_width
     val hash_input_width = hash_funcs.head.input_width
 
     require(hash_input_width == data_width)
     require(data_width % 32 == 0)
     require(array_size > 0)
-    require(n_hash_funcs > 0)
     require(array_size > n_hash_funcs)
 }
 
