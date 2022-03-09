@@ -13,8 +13,10 @@ Test insert data and readback
 
 Test pipelined lookup/insert
 
+Test Chisel implementation against Scala model
+
 ### TBD
 
 Implement more hash functions
 
-Test Chisel implementation against Scala model
+

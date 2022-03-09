@@ -33,6 +33,147 @@ class HashFunc_Modulo2(input_width: Int, hash_width: Int) extends HashFunc(input
     }
 }
 
+class HashFunc_MurMur3(input_width: Int, hash_width: Int, val seed: Int) extends HashFunc(input_width, hash_width) {
+
+    // murmur 3 yields a 32 or 128 bits value
+    // This implementation is 32-bit version and pick up lower bits
+    require(hash_width <= 32)
+
+
+    def rotl32_scala(x: Int, r: Int) = {
+        // x: uint32, r: int8
+        (x << r) | (x >> (32 - r))
+    }
+
+    def intReverseEndian(i: Int) = {
+        val i0 = i & 0xFF
+        val i1 = (i >> 8) & 0xFF
+        val i2 = (i >> 16) & 0xFF
+        val i3 = (i >> 24)
+
+        (i0 << 24) | (i1 << 16) | (i2 << 8) | i3
+    }
+
+
+    def hash_scala(input: BigInt) = {
+        //
+
+        var h = seed;
+
+        val c1 = 0xcc9e2d51
+        val c2 = 0x1b873593
+
+        val r1 = 15
+        val r2 = 13
+
+        val m = 5
+        val n = 0xe6546b64
+
+        val num_of_blocks = input_width / 32
+
+        (0 until num_of_blocks).foreach { i => {
+            var k = ((input >> i) & BigInt("FFFFFFFF", 16)).toInt
+            k = k * c1
+            k = rotl32_scala(k, r1)
+            k = k * c2
+
+            h = h ^ k
+            h = rotl32_scala(h, r2)
+            h = h * m + n
+        }}
+
+        // tail
+        if (num_of_blocks * 32 != input_width) {
+            val tail_bits = (input >> (num_of_blocks * 32)).toInt
+            val tail_bytes = (input_width % 32 + 7) / 8
+
+            var k = intReverseEndian(tail_bits)
+            k = k * c1
+            k = rotl32_scala(k, r1)
+            k = k * c2
+
+            h = h ^ k
+        }
+
+        h = h ^ input_width
+
+        h = h ^ (h >> 16)
+        h = h * 0x85ebca6b
+        h = h ^ (h >> 13)
+        h = h * 0xc2b2ae35
+        h = h ^ (h >> 16)
+        
+        // pick up lower bits
+        h & ((1 << hash_width) - 1)
+    }
+
+
+
+
+    def rotl32_chisel(x: UInt, r: UInt) = {
+        // x: uint32, r: int8
+        (x << r) | (x >> (32.U - r))
+    }
+
+    def intReverseEndian_chisel(i: UInt) = {
+        Reverse(i)
+    }
+
+
+    def hash_chisel(input: UInt) = {
+        //
+
+        var h = seed.U;
+
+        val c1 = BigInt("cc9e2d51", 16).U
+        val c2 = BigInt("1b873593", 16).U
+
+        val r1 = 15.U
+        val r2 = 13.U
+
+        val m = 5.U
+        val n = BigInt("e6546b64", 16).U
+
+        val num_of_blocks = input_width / 32
+
+        (0 until num_of_blocks).foreach { i => {
+            var k = input(32 * (i+1) - 1, 32 * i)
+            k = k * c1
+            k = rotl32_chisel(k, r1)
+            k = k * c2
+
+            h = h ^ k
+            h = rotl32_chisel(h, r2)
+            h = h * m + n
+        }}
+
+        // tail
+        if (num_of_blocks * 32 != input_width) {
+            val tail_bits = input(input_width - 1, 32 * num_of_blocks)
+            val tail_bytes = (input_width % 32 + 7) / 8
+
+            var k = intReverseEndian_chisel(tail_bits)
+            k = k * c1
+            k = rotl32_chisel(k, r1)
+            k = k * c2
+
+            h = h ^ k
+        }
+
+        h = h ^ input_width.U
+
+        h = h ^ (h >> 16.U)
+        h = h * BigInt("85ebca6b", 16).U
+        h = h ^ (h >> 13.U)
+        h = h * BigInt("c2b2ae35", 16).U
+        h = h ^ (h >> 16.U)
+        
+        // pickup lower bits
+        h(hash_width - 1, 0)
+    }
+
+}
+
 class BloomFilterCmds extends Bundle {
     val lookup = Bool()
     val insert = Bool()

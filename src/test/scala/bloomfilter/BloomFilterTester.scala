@@ -186,4 +186,31 @@ class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
         }
     }
 
+
+    it should "correctly run murmur3 hash algorithm" in {
+        val hash_funcs = Seq(new HashFunc_Modulo(32 ,5), new HashFunc_MurMur3(32, 5, 0x1234))
+        val param = new BloomFilterParams(hash_funcs, 32, 32)
+        val scalaModel = new BloomFilterModel(param)
+
+        test(new BloomFilter(param)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
+            bf_clear(dut, param.array_size)
+            scalaModel.clear()
+            // insert into bloom filter
+
+
+            (0 until 8).foreach { i => {
+                val data = Random.nextInt(500)
+                val isInsert = Random.nextInt(100) < 50
+
+                if (isInsert) {
+                    bf_insert(dut, data)
+                    scalaModel.insert(data)
+                }
+
+                bf_lookup(dut, data, scalaModel.lookup(data)) 
+            }}
+
+        }
+    }
+
 }
