@@ -300,19 +300,15 @@ class BloomFilter(p: BloomFilterParams) extends Module {
             }
         } .elsewhen (io.in.bits.cmd.clear) {
             // clear
-            mem.write(mem_clear_counter_value, false.B)
-            // clearing := true.B
             s1_cmd := s2_clear
         } .otherwise {
             s1_cmd := s2_idle
         }
     } .otherwise {
         when (s1_cmd === s2_clear) {
+            mem.write(mem_clear_counter_value, false.B)
             when(mem_clear_counter_wrap) {
                 s1_cmd := s2_idle
-            } .otherwise {
-                // Not done yet
-                mem.write(mem_clear_counter_value, false.B)
             }
         } .otherwise {
             s1_cmd := s2_idle
