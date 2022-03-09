@@ -231,12 +231,10 @@ class BloomFilterCmds extends Bundle {
 
 case class BloomFilterParams(val hash_funcs: Seq[HashFunc], val data_width: Int, val array_size: Int) {
     val n_hash_funcs = hash_funcs.length
-
     val hash_width = hash_funcs.head.hash_width
     val hash_input_width = hash_funcs.head.input_width
 
     require(hash_input_width == data_width)
-
     require(data_width % 32 == 0)
     require(array_size > 0)
     require(n_hash_funcs > 0)
@@ -245,8 +243,6 @@ case class BloomFilterParams(val hash_funcs: Seq[HashFunc], val data_width: Int,
 
 
 class BloomFilter(p: BloomFilterParams) extends Module {
-
-
 
     val io = IO(new Bundle {
         val in = Flipped(Decoupled(new Bundle {
@@ -259,9 +255,7 @@ class BloomFilter(p: BloomFilterParams) extends Module {
         })
     })
 
-
     val mem = SyncReadMem(p.array_size, Bool())
-
 
     val s2_idle :: s2_lookup :: s2_insert :: s2_clear :: Nil = Enum(4)
     val s1_cmd = RegInit(UInt(), s2_idle)
@@ -315,7 +309,6 @@ class BloomFilter(p: BloomFilterParams) extends Module {
         }
     }
 
-
     // pipeline stage 2
     // Retrive data, return result
 
@@ -334,6 +327,4 @@ class BloomFilter(p: BloomFilterParams) extends Module {
             io.out.valid := true.B
         }
     }
-
-
 }
