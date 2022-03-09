@@ -15,8 +15,15 @@ Test pipelined lookup/insert
 
 Test Chisel implementation against Scala model
 
-### TBD
+### Hash Functions
 
-Implement more hash functions
+Following hash functions are implemented:
+
+Modulo (hash = input % hash_width)
+
+Murmur3 [Wikipedia](https://en.wikipedia.org/wiki/MurmurHash)
+
+FNV [Wikipedia](https://en.wikipedia.org/wiki/Fowler–Noll–Vo_hash_function)
+
 
 

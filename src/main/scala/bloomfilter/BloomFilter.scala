@@ -24,12 +24,59 @@ class HashFunc_Modulo(input_width: Int, hash_width: Int) extends HashFunc(input_
 }
 
 class HashFunc_Modulo2(input_width: Int, hash_width: Int) extends HashFunc(input_width, hash_width) {
+    // Test use only
     def hash_scala(input: BigInt) = {
         input % hash_width + 1
     }
 
     def hash_chisel(input: UInt) = {
         input % (hash_width.U) + 1.U
+    }
+}
+
+class HashFunc_FNV1A(input_width: Int, hash_width: Int) extends HashFunc(input_width, hash_width) {
+    // FNV1A works with bytes
+    require(input_width % 8 == 0)
+
+    // algorithm fnv-1a is
+    // hash := FNV_offset_basis
+
+    // for each byte_of_data to be hashed do
+    //     hash := hash XOR byte_of_data
+    //     hash := hash × FNV_prime
+
+    // return hash
+
+    
+    // magic number for 32 bit fnv
+    var fnvPrime = BigInt("1000193", 16)
+    var fnvOffsetBasis = BigInt("811c9dc5", 16)
+
+    def hash_scala(input: BigInt) = {
+        var hash = fnvOffsetBasis.toInt
+        val num_of_bytes = input_width / 8
+
+        (0 until num_of_bytes).foreach { i => {
+            val k = ((input >> (i * 8)) & BigInt(0xFF)).toInt
+            hash = hash ^ k
+            hash = hash * (fnvPrime.toInt)
+        }}
+
+        // pick up lower bits
+        hash & ((1 << hash_width) - 1)
+    }
+
+    def hash_chisel(input: UInt) = {
+        var hash = fnvOffsetBasis.U
+        val num_of_bytes = input_width / 8
+
+        (0 until num_of_bytes).foreach { i => {
+            val k = input(8 * (i+1) - 1, 8 * i)
+            hash = hash ^ k
+            hash = hash * fnvPrime.U
+        }}
+
+        hash(hash_width - 1, 0)
     }
 }
 
@@ -72,7 +119,7 @@ class HashFunc_MurMur3(input_width: Int, hash_width: Int, val seed: Int) extends
         val num_of_blocks = input_width / 32
 
         (0 until num_of_blocks).foreach { i => {
-            var k = ((input >> i) & BigInt("FFFFFFFF", 16)).toInt
+            var k = ((input >> (i * 32)) & BigInt("FFFFFFFF", 16)).toInt
             k = k * c1
             k = rotl32_scala(k, r1)
             k = k * c2
@@ -104,7 +151,8 @@ class HashFunc_MurMur3(input_width: Int, hash_width: Int, val seed: Int) extends
         h = h ^ (h >> 16)
         
         // pick up lower bits
-        h & ((1 << hash_width) - 1)
+        val ret = h & ((1 << hash_width) - 1)
+        ret
     }
 
 
