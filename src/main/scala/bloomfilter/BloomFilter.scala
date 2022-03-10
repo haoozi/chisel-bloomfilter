@@ -2,6 +2,7 @@ package bloomfilter
 
 import chisel3._
 import chisel3.util._
+import chisel3.experimental.ChiselEnum
 
 import scala.math.BigInt
 import javax.sql.rowset.spi.SyncResolver
@@ -222,11 +223,6 @@ class HashFunc_MurMur3(input_width: Int, hash_width: Int, val seed: Int) extends
 
 }
 
-class BloomFilterCmds extends Bundle {
-    val lookup = Bool()
-    val insert = Bool()
-    val clear = Bool()
-}
 
 
 case class BloomFilterParams(val hash_funcs: Seq[HashFunc], val data_width: Int, val array_size: Int) {
@@ -243,12 +239,19 @@ case class BloomFilterParams(val hash_funcs: Seq[HashFunc], val data_width: Int,
 }
 
 
+object BloomFilterCmd extends ChiselEnum {
+    val Cmd_Lookup, Cmd_Insert, Cmd_Clear, Cmd_Nop = Value
+}
+
+
 class BloomFilter(p: BloomFilterParams) extends Module {
+
+    import BloomFilterCmd._
 
     val io = IO(new Bundle {
         val in = Flipped(Decoupled(new Bundle {
-            val data = UInt(p.data_width.W)
-            val cmd = Input(new BloomFilterCmds())
+            val data = Input(UInt(p.data_width.W))
+            val cmd = Input(BloomFilterCmd())
         }))
 
         val out = Valid(new Bundle {
@@ -264,7 +267,7 @@ class BloomFilter(p: BloomFilterParams) extends Module {
     val mem_clear_counter = new Counter(p.array_size)
     val (mem_clear_counter_value, mem_clear_counter_wrap) = Counter(s1_cmd === s2_clear, p.array_size)
 
-    val mem_read_en = io.in.fire && io.in.bits.cmd.lookup
+    val mem_read_en = io.in.fire && (io.in.bits.cmd === Cmd_Lookup)
 
     val hash_result = Wire(Vec(p.n_hash_funcs, UInt(p.hash_width.W)))
     val mem_read_result = Wire(Vec(p.n_hash_funcs, Bool()))
@@ -283,20 +286,21 @@ class BloomFilter(p: BloomFilterParams) extends Module {
     // Accept req and calculate hash, then send out mem read/write request (n port)
 
     when (io.in.fire) {
-        when (io.in.bits.cmd.lookup) {
+        when (io.in.bits.cmd === Cmd_Lookup) {
             // lookup
             s1_cmd := s2_lookup
 
-        } .elsewhen (io.in.bits.cmd.insert) {
+        } .elsewhen (io.in.bits.cmd === Cmd_Insert) {
             // insert
             s1_cmd := s2_insert
             (0 until p.n_hash_funcs).foreach {
                 i => { mem.write(hash_result(i), true.B) }
             }
-        } .elsewhen (io.in.bits.cmd.clear) {
+        } .elsewhen (io.in.bits.cmd === Cmd_Clear) {
             // clear
             s1_cmd := s2_clear
         } .otherwise {
+            // nop
             s1_cmd := s2_idle
         }
     } .otherwise {

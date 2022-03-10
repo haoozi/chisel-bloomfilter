@@ -10,13 +10,13 @@ import scala.util.Random
 
 class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
 
+    import BloomFilterCmd._
+
     def bf_clear(dut: BloomFilter, array_size: Int) = {
         dut.io.in.ready.expect(true.B)
 
         dut.io.in.valid.poke(true.B)
-        dut.io.in.bits.cmd.lookup.poke(false.B)
-        dut.io.in.bits.cmd.insert.poke(false.B)
-        dut.io.in.bits.cmd.clear.poke(true.B)
+        dut.io.in.bits.cmd.poke(Cmd_Clear)
         dut.io.in.bits.data.poke(0.U)
         dut.io.out.valid.expect(false.B)
 
@@ -40,9 +40,7 @@ class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
         dut.io.in.ready.expect(true.B)
 
         dut.io.in.valid.poke(true.B)
-        dut.io.in.bits.cmd.lookup.poke(false.B)
-        dut.io.in.bits.cmd.insert.poke(true.B)
-        dut.io.in.bits.cmd.clear.poke(false.B)
+        dut.io.in.bits.cmd.poke(Cmd_Insert)
         dut.io.in.bits.data.poke(data.U)
 
         dut.clock.step()
@@ -58,9 +56,7 @@ class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
         dut.io.in.ready.expect(true.B)
 
         dut.io.in.valid.poke(true.B)
-        dut.io.in.bits.cmd.lookup.poke(true.B)
-        dut.io.in.bits.cmd.insert.poke(false.B)
-        dut.io.in.bits.cmd.clear.poke(false.B)
+        dut.io.in.bits.cmd.poke(Cmd_Lookup)
         dut.io.in.bits.data.poke(data.U)
 
         dut.clock.step()
@@ -71,15 +67,9 @@ class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
         dut.io.out.bits.exists.expect(exists.B)
     }
 
-    object BFAction extends Enumeration {
-        type BFAction = Value
-        val Lookup, Insert = Value
-    }
-    import BFAction._
 
 
-
-    case class BloomFilterTestAction(act: BFAction, data: Int, exists: Boolean)
+    case class BloomFilterTestAction(act: BloomFilterCmd.Type, data: Int, exists: Boolean)
 
     def bf_pipeline(dut: BloomFilter, actions: Seq[BloomFilterTestAction]) = {
         
@@ -91,9 +81,7 @@ class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
 
                     dut.io.in.ready.expect(true.B)
                     dut.io.in.valid.poke(true.B)
-                    dut.io.in.bits.cmd.lookup.poke((action.act == Lookup).B)
-                    dut.io.in.bits.cmd.insert.poke((action.act == Insert).B)
-                    dut.io.in.bits.cmd.clear.poke(false.B)
+                    dut.io.in.bits.cmd.poke(action.act)
                     dut.io.in.bits.data.poke(action.data.U)
                 } else {
                     dut.io.in.valid.poke(false.B)
@@ -105,7 +93,7 @@ class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
 
                     dut.io.out.valid.expect(true.B)
                     // don't care action.exists if it's an insertion
-                    if (action.act == Lookup) {
+                    if (action.act == Cmd_Lookup) {
                         dut.io.out.bits.exists.expect(action.exists.B)
                     }
                 } else {
@@ -168,12 +156,12 @@ class BloomFilterTester extends AnyFlatSpec with ChiselScalatestTester {
 
     it should "correctly complete pipelined requests" in {
         val requests = Seq(
-            BloomFilterTestAction(Insert, 111, false),
-            BloomFilterTestAction(Insert, 222, false),
-            BloomFilterTestAction(Lookup, 222, true),
-            BloomFilterTestAction(Lookup, 333, false),
-            BloomFilterTestAction(Insert, 333, false),
-            BloomFilterTestAction(Lookup, 333, true),
+            BloomFilterTestAction(Cmd_Insert, 111, false),
+            BloomFilterTestAction(Cmd_Insert, 222, false),
+            BloomFilterTestAction(Cmd_Lookup, 222, true),
+            BloomFilterTestAction(Cmd_Lookup, 333, false),
+            BloomFilterTestAction(Cmd_Insert, 333, false),
+            BloomFilterTestAction(Cmd_Lookup, 333, true),
         )
         val hash_funcs = Seq(new HashFunc_Modulo(32, 4), new HashFunc_Modulo2(32, 4))
         val param = new BloomFilterParams(hash_funcs, 32, 16)
