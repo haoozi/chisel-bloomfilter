@@ -7,6 +7,23 @@ This implementation is a 2-staged bloom filter, which means lookup result will b
 ## How to run
 ```sbt test```
 
+## Implement a new hash function
+
+A new hash function class should inherite ```HashFunc```, implement ```hash_scala``` to return the hash value for scala model, and ```hash_chisel``` to return the hardware implementation. Hash functions should consider ```input_width``` as width of data to be hashed, and use ```hash_width``` as width of hash value. ```HashFunc_Modulo``` is a good example.
+
+
+## Bloom filter parameters
+
+```BloomFilter``` and ```BloomFilterModel``` requires ```BloomFilterParams``` as parameter. The ```BloomFilterParameter``` requires following input when instantiates:
+
+
+```
+val hash_funcs: Seq[HashFunc] // a sequence of HashFunc object
+val data_width: Int           // input data width
+val array_size: Int           // BloomFilter array size
+```
+
+
 ## Status
 ### Completed
 1. Test clear memory
